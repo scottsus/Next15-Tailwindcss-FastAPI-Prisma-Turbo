@@ -1,5 +1,5 @@
 from app.db import db, lifespan
-from app.routers import users
+from app.routers import clone, users
 from fastapi import FastAPI
 
 api_router = FastAPI(lifespan=lifespan)
@@ -11,3 +11,4 @@ async def healthcheck():
 
 
 api_router.include_router(users.router, prefix="/users", tags=["users"])
+api_router.include_router(clone.router, prefix="/clone", tags=["clone"])
