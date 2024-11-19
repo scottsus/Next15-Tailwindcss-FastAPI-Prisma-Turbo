@@ -10,6 +10,7 @@ import {
 import { useEffect } from "react";
 
 import { createRoom, dialClone } from "./api";
+import { EndResponseButton } from "./endResponse";
 
 export default function Video({
   setCallObject,
@@ -61,6 +62,7 @@ export default function Video({
         fit="cover"
         type={"video"}
       />
+      <EndResponseButton />
     </div>
   );
 }

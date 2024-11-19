@@ -1,6 +1,7 @@
 import logging
 import os
 import sys
+import traceback
 from typing import Union
 
 
@@ -25,7 +26,12 @@ class PrettyFormatter(logging.Formatter):
         log_fmt = self.FORMATS.get(record.levelno)
         date_format = "%Y-%m-%d %H:%M:%S"
         formatter = logging.Formatter(log_fmt, date_format)
-        return formatter.format(record)
+        formatted = formatter.format(record)
+
+        if record.levelno in (logging.WARN, logging.ERROR, logging.CRITICAL):
+            formatted += "\n" + traceback.format_exc()
+
+        return formatted
 
 
 def get_logger(name: str, log_level: Union[int, None] = None):

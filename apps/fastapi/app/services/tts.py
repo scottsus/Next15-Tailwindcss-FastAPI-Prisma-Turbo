@@ -1,11 +1,20 @@
 import logging
 import os
+from abc import ABC, abstractmethod
 
 from app.lib.logger import get_logger
 from app.lib.utils import audio_bytes_to_pcm_frames
 from requests import request
 
 logger = get_logger(__name__, logging.INFO)
+
+
+class TTS(ABC):
+    @abstractmethod
+    def speak(self, text: str):
+        """Converts text into 16-bit pcm audio"""
+        pass
+
 
 # https://github.com/scottsus
 SCOTTSUS = "f78cCrsIlJSqpKC9Je98"

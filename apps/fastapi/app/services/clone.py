@@ -1,8 +1,12 @@
 import logging
-from typing import List
+from concurrent.futures import ThreadPoolExecutor
+from enum import Enum
+from queue import Queue
+from typing import Any, Dict, List, Tuple
 
 from app.lib.logger import get_logger
-from app.services.tts import ElevenLabs
+from app.services.stt import STT, Deepgram
+from app.services.tts import TTS, ElevenLabs
 from daily import CallClient, Daily, EventHandler, VirtualMicrophoneDevice
 from pydantic import BaseModel
 
@@ -12,6 +16,14 @@ logger = get_logger(__name__, logging.DEBUG)
 class DataPacket(BaseModel):
     text: str
     audio: bytes
+
+
+class ExchangeState(Enum):
+    CLOSED = "closed"
+    IDLE = "idle"
+    SPEAKING = "speaking"
+    LISTENING = "listening"
+    POST_PROCESSING = "post-processing"
 
 
 def construct_clone(room_url: str):
@@ -46,13 +58,23 @@ def construct_clone(room_url: str):
 class Clone(EventHandler):
     def __init__(self, room_url: str):
         self.name = "Scott"
+
         self.call_client: CallClient = None
         self.microphone: VirtualMicrophoneDevice = None
-        self.tts = ElevenLabs()
         self.packets: List[DataPacket] = []
-        self.intro = """
-        Yo what's up. I'm Scott's AI - and although I'm not actually Scott himself,
-        I have his voice completely cloned. How are you doing today?"""
+
+        self.stt: STT = Deepgram()
+        self.tts: TTS = ElevenLabs()
+
+        self.audio_data_queue: Queue[Tuple[bytes, bool]] = Queue()
+
+        self.exchange_state = ExchangeState.IDLE
+        self.is_in_conversation = True
+
+        # self.intro = """
+        # Yo what's up. I'm Scott's AI - and although I'm not actually Scott himself,
+        # I have his voice completely cloned. How are you doing today?"""
+        self.intro = "Yo what's up. I'm Scott's AI"
 
     def start(self):
         try:
@@ -61,11 +83,51 @@ class Clone(EventHandler):
             self._run()
 
         except Exception as e:
-            logger.error(str(e))
+            logger.error(e)
+            raise
 
     def _run(self):
+        # Send welcome message
         for packet in self.packets:
             self._send_audio(packet)
+
+        while self.is_in_conversation:
+            with ThreadPoolExecutor() as executor:
+
+                # Listen
+                try:
+                    logger.info("trying to open pipeline")
+                    self.stt = (executor.submit(self.stt.open)).result()
+                except Exception as e:
+                    logger.error("stt.open failed:", e)
+                    raise
+
+                self.exchange_state = ExchangeState.LISTENING
+                while self.exchange_state == ExchangeState.LISTENING:
+                    try:
+                        audio_frames, ok = self.audio_data_queue.get(timeout=0.5)
+                        if not ok:
+                            logger.debug("ending audio pipeline")
+                            break
+                        self.stt.write(audio_frames)
+                    except Exception as e:
+                        logger.warn(e)
+
+                try:
+                    self.stt = (executor.submit(self.stt.close)).result()
+                except Exception as e:
+                    logger.error("stt.close failed:", e)
+                    raise
+
+                logger.info(f"segment: {self.stt.get_result()}")
+
+                # Respond
+                # blah
+                # blah
+                # blah
+
+                # End the conversation
+                self.is_in_conversation = False
 
     def _speak(self, text: str):
         logger.debug(f"generating TTS for '{text}'...")
@@ -77,11 +139,49 @@ class Clone(EventHandler):
 
         except Exception as e:
             logger.warn(e)
+            raise
 
     def _send_audio(self, data: DataPacket):
         try:
             self.microphone.write_frames(data.audio)
-            logger.debug("written frames to microphone")
+            logger.debug("sent to microphone")
 
         except Exception as e:
             logger.warn(e)
+            raise
+
+    def on_participant_joined(self, participant: Dict[str, Any]) -> None:
+        """Callback from EventHandler"""
+        try:
+            participant_id = participant["id"]
+            self.call_client.set_audio_renderer(participant_id, self.on_audio_data)
+            logger.info(f"participant with id [{participant_id}] has joined the room.")
+
+        except Exception as e:
+            logger.error(e)
+            raise
+
+    def on_app_message(self, message: Any, sender: str):
+        """Callback from EventHandler"""
+        try:
+            if (
+                self.exchange_state == ExchangeState.LISTENING
+                and message["type"] == "speechend"
+            ):
+                logger.debug("received 'speechend' signal")
+                self.exchange_state = ExchangeState.SPEAKING
+
+        except Exception as e:
+            logger.warn(e)
+            pass
+
+    def on_audio_data(self, _, audio_data):
+        """API from CallClient.set_audio_renderer"""
+        try:
+            if self.exchange_state == ExchangeState.LISTENING:
+                audio_frames = audio_data.audio_frames
+                self.audio_data_queue.put((audio_frames, True))
+
+        except Exception as e:
+            logger.error(e)
+            self.audio_data_queue.put((b"", False))
