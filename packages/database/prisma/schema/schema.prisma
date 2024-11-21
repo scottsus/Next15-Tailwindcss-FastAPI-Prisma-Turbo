@@ -10,15 +10,10 @@ datasource db {
 generator py {
   provider             = "prisma-client-py"
   recursive_type_depth = -1
+  previewFeatures      = ["prismaSchemaFolder"]
 }
 
 generator js {
-  provider = "prisma-client-js"
-}
-
-model User {
-  id            String    @id @default(cuid())
-  name          String?
-  email         String?   @unique
-  emailVerified DateTime?
+  provider        = "prisma-client-js"
+  previewFeatures = ["prismaSchemaFolder"]
 }

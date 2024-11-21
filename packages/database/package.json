@@ -6,7 +6,7 @@
   },
   "scripts": {
     "db:pull": "prisma db pull",
-    "db:push": "prisma db push",
+    "db:push": "prisma db push --skip-generate",
     "db:generate": "prisma db generate",
     "db:studio": "prisma studio",
     "db:migrate": "prisma migrate deploy",

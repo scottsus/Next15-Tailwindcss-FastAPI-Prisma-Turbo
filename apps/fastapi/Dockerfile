@@ -6,7 +6,7 @@ WORKDIR /app
 
 COPY packages/database packages/database
 RUN pip install prisma
-RUN prisma generate --schema="/app/packages/database/prisma/schema.prisma" --generator py
+RUN prisma generate --schema="/app/packages/database/prisma/schema" --generator py
 
 WORKDIR /app/apps/fastapi
 COPY apps/fastapi/requirements.txt .

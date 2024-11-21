@@ -1,0 +1,20 @@
+model Conversation {
+    id       String    @id @default(uuid())
+    messages Message[]
+}
+
+model Message {
+    id             String       @id @default(uuid())
+    conversationId String       @map("conversation_id")
+    role           Role
+    startTime      Float
+    content        String
+    transcript     Conversation @relation(fields: [conversationId], references: [id])
+
+    @@index([conversationId])
+}
+
+enum Role {
+    guest
+    clone
+}

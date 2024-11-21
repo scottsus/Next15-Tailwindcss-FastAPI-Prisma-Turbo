@@ -1,11 +1,13 @@
 import logging
 from concurrent.futures import ThreadPoolExecutor
 from enum import Enum
-from queue import Queue
+from queue import Empty, Queue
+from time import time
 from typing import Any, Dict, List, Tuple
 
 from app.lib.logger import get_logger
 from app.services.stt import STT, Deepgram
+from app.services.transcript import Role, Transcript
 from app.services.tts import TTS, ElevenLabs
 from daily import CallClient, Daily, EventHandler, VirtualMicrophoneDevice
 from pydantic import BaseModel
@@ -71,6 +73,9 @@ class Clone(EventHandler):
         self.exchange_state = ExchangeState.IDLE
         self.is_in_conversation = True
 
+        self.start_time: float
+        self.transcript = Transcript("123")
+
         # self.intro = """
         # Yo what's up. I'm Scott's AI - and although I'm not actually Scott himself,
         # I have his voice completely cloned. How are you doing today?"""
@@ -78,6 +83,8 @@ class Clone(EventHandler):
 
     def start(self):
         try:
+            self.start_time = time()
+
             logger.info("Clone.start()...")
             self.packets = [self._speak(self.intro)]
             self._run()
@@ -90,6 +97,7 @@ class Clone(EventHandler):
         # Send welcome message
         for packet in self.packets:
             self._send_audio(packet)
+        self.packets = []
 
         while self.is_in_conversation:
             with ThreadPoolExecutor() as executor:
@@ -110,6 +118,8 @@ class Clone(EventHandler):
                             logger.debug("ending audio pipeline")
                             break
                         self.stt.write(audio_frames)
+                    except Empty:
+                        pass
                     except Exception as e:
                         logger.warn(e)
 
@@ -119,15 +129,24 @@ class Clone(EventHandler):
                     logger.error("stt.close failed:", e)
                     raise
 
-                logger.info(f"segment: {self.stt.get_result()}")
+                # @TODO: should be message instead of segment
+                message = self.stt.get_result()
+                relative_start_time = time() - self.start_time
+                self.transcript.append(
+                    role=Role.USER, start_time=relative_start_time, content=message
+                )
+                logger.info(f"segment: {message}")
 
                 # Respond
-                # blah
-                # blah
-                # blah
+                # @TODO: speak should include these packet stuff
+                self.packets = [self._speak("I see. That is indeed really interesting")]
+                for packet in self.packets:
+                    self._send_audio(packet)
 
-                # End the conversation
                 self.is_in_conversation = False
+
+            # End the conversation
+            self.is_in_conversation = False
 
     def _speak(self, text: str):
         logger.debug(f"generating TTS for '{text}'...")

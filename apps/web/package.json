@@ -7,7 +7,7 @@
     "lint": "next lint",
     "build": "yarn prisma && next build",
     "start": "next start",
-    "prisma": "prisma generate --schema='../../packages/database/prisma/schema.prisma' --generator js"
+    "prisma": "./generate_prisma_client.sh"
   },
   "dependencies": {
     "@clerk/nextjs": "^6.3.4",

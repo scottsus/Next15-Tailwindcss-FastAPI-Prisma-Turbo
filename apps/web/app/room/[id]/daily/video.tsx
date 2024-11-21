@@ -48,9 +48,9 @@ export default function Video({
   }, [callObject]);
 
   return (
-    <div className="rounded-lg bg-red-500">
+    <div className="rounded-lg">
       <DailyAudio />
-      <DailyVideo
+      {/* <DailyVideo
         style={{
           width: "100%",
           height: "100%",
@@ -61,7 +61,7 @@ export default function Video({
         automirror
         fit="cover"
         type={"video"}
-      />
+      /> */}
       <EndResponseButton />
     </div>
   );
